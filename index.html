@@ -353,7 +353,9 @@
 
 </div>
 
+<script src="vendor/twilio.min.js"></script>
 <script src="cti.js"></script>
+<script src="twilio-phone.js"></script>
 <script>
 (function () {
   var dialer = document.getElementById('dialer');
@@ -377,15 +379,29 @@
   var record = null;      // Salesforce record from click-to-dial, if any
   var footerTimeout = null;
 
+  function statusText() {
+    var sf = DialerCTI.isConnected() ? 'Salesforce connected' : 'Salesforce not connected';
+    var phone = DialerPhone.isEnabled() ? 'phone ready' : 'simulated calls';
+    return sf + ' · ' + phone;
+  }
+
   function setFooter(text, revertMs) {
     clearTimeout(footerTimeout);
     footerNote.textContent = text;
     if (revertMs) {
       footerTimeout = setTimeout(function () {
-        footerNote.textContent = DialerCTI.isConnected()
-          ? 'Connected to Salesforce' : 'Standalone — not connected to Salesforce';
+        footerNote.textContent = statusText();
       }, revertMs);
     }
+  }
+
+  // Twilio wants E.164 (+14155551234); pass short/special strings through.
+  function dialString(value) {
+    if (value.charAt(0) === '+') return value;
+    var digits = value.replace(/\D/g, '');
+    if (digits.length === 10) return '+1' + digits;
+    if (digits.length === 11 && digits.charAt(0) === '1') return '+' + digits;
+    return value;
   }
 
   // Format 10-digit US numbers as (xxx) xxx-xxxx; leave others as typed.
@@ -420,20 +436,36 @@
       input.placeholder = 'Enter a number to call';
       return;
     }
+    var live = DialerPhone.isEnabled();
     onCall = true;
     seconds = 0;
     timerEl.textContent = '00:00';
     dialer.classList.add('on-call');
     header.classList.add('on-call');
     headerTitle.textContent = record && record.recordName ? record.recordName : format(raw);
-    headerSub.textContent = record && record.recordName ? format(raw) : 'On call';
+    headerSub.textContent = live ? 'Dialing…' : 'On call';
     setFooter('Call in progress');
     backspaceBtn.classList.remove('visible');
-    timerId = setInterval(tick, 1000);
+    if (live) {
+      DialerPhone.connect(dialString(raw));   // timer starts on accept
+    } else {
+      timerId = setInterval(tick, 1000);
+    }
     DialerCTI.notifyCallStart(raw);
   }
 
+  // End button: hang up the real call and let its disconnect event clean up;
+  // in simulated mode, clean up directly.
   function endCall() {
+    if (DialerPhone.isEnabled() && onCall) {
+      DialerPhone.disconnect();
+      return;
+    }
+    finishCall();
+  }
+
+  function finishCall() {
+    if (!onCall) return;
     var call = { number: format(raw), seconds: seconds, record: record };
     onCall = false;
     clearInterval(timerId);
@@ -455,7 +487,7 @@
         setFooter(response.success ? 'Call logged' : 'Call log failed — log it manually', 4000);
       });
     } else {
-      setFooter('Standalone — not connected to Salesforce');
+      setFooter(statusText());
     }
   }
 
@@ -479,7 +511,10 @@
       : muteBtn.classList.contains('active') ? 'Muted' : 'On call';
   }
 
-  muteBtn.addEventListener('click', function () { toggle(muteBtn); });
+  muteBtn.addEventListener('click', function () {
+    toggle(muteBtn);
+    DialerPhone.setMute(muteBtn.classList.contains('active'));
+  });
   holdBtn.addEventListener('click', function () { toggle(holdBtn); });
 
   // Direct typing in the display: keep only dialable characters.
@@ -499,11 +534,25 @@
     else if (e.key === 'Enter') { onCall ? endCall() : startCall(); }
   });
 
+  DialerPhone.init({
+    onReady: function () {
+      if (!onCall) setFooter(statusText());
+    },
+    onAccept: function () {
+      headerSub.textContent = 'On call';
+      timerId = setInterval(tick, 1000);
+    },
+    onDisconnect: function () {
+      finishCall();
+    },
+    onError: function (message) {
+      setFooter(message, 6000);
+    }
+  });
+
   DialerCTI.init({
-    onStatusChange: function (connected) {
-      if (!onCall) {
-        setFooter(connected ? 'Connected to Salesforce' : 'Standalone — not connected to Salesforce');
-      }
+    onStatusChange: function () {
+      if (!onCall) setFooter(statusText());
     },
     onClickToDial: function (payload) {
       if (onCall) return;
