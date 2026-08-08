@@ -17,8 +17,8 @@ window.DIALER_CONFIG = {
   apiVersion: '62.0',
   // Leave empty when the page is served from your Salesforce domain
   // (e.g. as a Visualforce page). If it's hosted externally, set your
-  // org's domain: 'https://yourdomain.lightning.force.com'
-  instanceUrl: ''
+  // org's domain: 'https://keyslogic.lightning.force.com'
+  instanceUrl: 'https://keyslogic.lightning.force.com'
 };
 
 window.DialerCTI = (function () {
