@@ -348,11 +348,12 @@
   </div>
 
   <footer class="footer">
-    <span class="footer-note" id="footerNote">Calls are logged automatically</span>
+    <span class="footer-note" id="footerNote">Connecting to Salesforce…</span>
   </footer>
 
 </div>
 
+<script src="cti.js"></script>
 <script>
 (function () {
   var dialer = document.getElementById('dialer');
@@ -373,6 +374,19 @@
   var onCall = false;
   var timerId = null;
   var seconds = 0;
+  var record = null;      // Salesforce record from click-to-dial, if any
+  var footerTimeout = null;
+
+  function setFooter(text, revertMs) {
+    clearTimeout(footerTimeout);
+    footerNote.textContent = text;
+    if (revertMs) {
+      footerTimeout = setTimeout(function () {
+        footerNote.textContent = DialerCTI.isConnected()
+          ? 'Connected to Salesforce' : 'Standalone — not connected to Salesforce';
+      }, revertMs);
+    }
+  }
 
   // Format 10-digit US numbers as (xxx) xxx-xxxx; leave others as typed.
   function format(value) {
@@ -411,27 +425,38 @@
     timerEl.textContent = '00:00';
     dialer.classList.add('on-call');
     header.classList.add('on-call');
-    headerTitle.textContent = format(raw);
-    headerSub.textContent = 'On call';
-    footerNote.textContent = 'Call in progress';
+    headerTitle.textContent = record && record.recordName ? record.recordName : format(raw);
+    headerSub.textContent = record && record.recordName ? format(raw) : 'On call';
+    setFooter('Call in progress');
     backspaceBtn.classList.remove('visible');
     timerId = setInterval(tick, 1000);
+    DialerCTI.notifyCallStart(raw);
   }
 
   function endCall() {
+    var call = { number: format(raw), seconds: seconds, record: record };
     onCall = false;
     clearInterval(timerId);
     dialer.classList.remove('on-call');
     header.classList.remove('on-call');
     headerTitle.textContent = 'Phone';
     headerSub.textContent = 'Ready to dial';
-    footerNote.textContent = 'Calls are logged automatically';
     muteBtn.classList.remove('active');
     muteBtn.setAttribute('aria-pressed', 'false');
     holdBtn.classList.remove('active');
     holdBtn.setAttribute('aria-pressed', 'false');
     raw = '';
+    record = null;
     render();
+
+    if (DialerCTI.isConnected()) {
+      setFooter('Saving call log…');
+      DialerCTI.logCall(call, function (response) {
+        setFooter(response.success ? 'Call logged' : 'Call log failed — log it manually', 4000);
+      });
+    } else {
+      setFooter('Standalone — not connected to Salesforce');
+    }
   }
 
   keypad.addEventListener('click', function (e) {
@@ -472,6 +497,21 @@
     if (/^[\d*#+]$/.test(e.key)) addChar(e.key);
     else if (e.key === 'Backspace') { raw = raw.slice(0, -1); render(); }
     else if (e.key === 'Enter') { onCall ? endCall() : startCall(); }
+  });
+
+  DialerCTI.init({
+    onStatusChange: function (connected) {
+      if (!onCall) {
+        setFooter(connected ? 'Connected to Salesforce' : 'Standalone — not connected to Salesforce');
+      }
+    },
+    onClickToDial: function (payload) {
+      if (onCall) return;
+      record = payload;
+      raw = String(payload.number || '').replace(/[^\d*#+]/g, '');
+      render();
+      if (payload.recordName) headerSub.textContent = payload.recordName;
+    }
   });
 
   render();

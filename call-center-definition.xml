@@ -1,0 +1,18 @@
+<!--
+  Sample Call Center definition for the Simple Dialer softphone.
+
+  1. Replace reqAdapterUrl with the HTTPS URL where index.html is hosted.
+  2. In Salesforce: Setup → Call Centers → Import → choose this file.
+  3. Edit the imported call center and add your users under "Manage Call Center Users".
+-->
+<callCenter>
+  <section sortOrder="0" name="reqGeneralInfo" label="General Information">
+    <item sortOrder="0" name="reqInternalName" label="InternalName">SimpleDialer</item>
+    <item sortOrder="1" name="reqDisplayName" label="Display Name">Simple Dialer</item>
+    <item sortOrder="2" name="reqAdapterUrl" label="CTI Adapter URL">https://your-host.example.com/index.html</item>
+    <item sortOrder="3" name="reqUseApi" label="Use CTI API">true</item>
+    <item sortOrder="4" name="reqSoftphoneHeight" label="Softphone Height">620</item>
+    <item sortOrder="5" name="reqSoftphoneWidth" label="Softphone Width">360</item>
+    <item sortOrder="6" name="reqSalesforceCompatibilityMode" label="Salesforce Compatibility Mode">Lightning</item>
+  </section>
+</callCenter>
