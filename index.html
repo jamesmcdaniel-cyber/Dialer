@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dialer</title>
+<style>
+  :root {
+    --sf-blue: #0176d3;
+    --sf-blue-dark: #014486;
+    --sf-green: #2e844a;
+    --sf-green-dark: #1c6032;
+    --sf-red: #ba0517;
+    --sf-red-dark: #8e030f;
+    --ink: #181818;
+    --ink-soft: #747474;
+    --line: #e5e5e5;
+    --card: #ffffff;
+    --ground: #f3f3f3;
+    --key-hover: #f0f6fb;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Salesforce Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--ground);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .dialer {
+    width: 340px;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(24, 24, 24, 0.12);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Header ---------- */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card);
+  }
+
+  .header.on-call { background: #ebf7ee; border-bottom-color: #c8e6d0; }
+
+  .status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--sf-green);
+    flex-shrink: 0;
+  }
+
+  .header.on-call .status-dot { animation: pulse 1.6s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 132, 74, 0.45); }
+    50%      { box-shadow: 0 0 0 6px rgba(46, 132, 74, 0); }
+  }
+
+  .header-text { flex: 1; min-width: 0; }
+
+  .header-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .header-sub {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .timer {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--sf-green-dark);
+    display: none;
+  }
+
+  .header.on-call .timer { display: block; }
+
+  /* ---------- Number display ---------- */
+  .display {
+    display: flex;
+    align-items: center;
+    padding: 18px 16px 6px;
+    gap: 8px;
+  }
+
+  .number-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    background: transparent;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .number-input::placeholder { color: #c9c9c9; font-weight: 300; }
+
+  .backspace {
+    border: none;
+    background: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    display: none;
+    line-height: 0;
+  }
+
+  .backspace:hover { color: var(--ink); background: var(--key-hover); }
+  .backspace.visible { display: block; }
+
+  /* ---------- Keypad ---------- */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 10px 16px 4px;
+  }
+
+  .key {
+    border: none;
+    background: none;
+    border-radius: 10px;
+    padding: 9px 0 7px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s ease;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .key:hover { background: var(--key-hover); }
+  .key:active { background: #dbeafc; }
+
+  .key .digit {
+    display: block;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+
+  .key .letters {
+    display: block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: var(--ink-soft);
+    min-height: 11px;
+  }
+
+  /* ---------- Action rows ---------- */
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    padding: 10px 16px 16px;
+  }
+
+  .action-btn {
+    border: none;
+    border-radius: 50%;
+    width: 54px;
+    height: 54px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    transition: background 0.12s ease, transform 0.08s ease;
+  }
+
+  .action-btn:active { transform: scale(0.94); }
+
+  .call-btn { background: var(--sf-green); }
+  .call-btn:hover { background: var(--sf-green-dark); }
+
+  .end-btn { background: var(--sf-red); display: none; }
+  .end-btn:hover { background: var(--sf-red-dark); }
+
+  /* In-call utility buttons (mute / hold) */
+  .util-btn {
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    border-radius: 50%;
+    width: 54px;
+    height: 54px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 2px;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+
+  .util-btn:hover { background: var(--key-hover); }
+
+  .util-btn.active {
+    background: var(--sf-blue);
+    border-color: var(--sf-blue);
+    color: #fff;
+  }
+
+  .util-btn .util-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .dialer.on-call .end-btn,
+  .dialer.on-call .util-btn { display: flex; }
+  .dialer.on-call .call-btn { display: none; }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    padding: 8px 16px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .footer-note {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  /* Keyboard focus */
+  button:focus-visible, .number-input:focus-visible {
+    outline: 2px solid var(--sf-blue);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* Very short pop-up windows: tighten spacing */
+  @media (max-height: 540px) {
+    .display { padding-top: 10px; }
+    .key { padding: 6px 0 5px; }
+    .actions { padding-bottom: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dialer" id="dialer">
+
+  <header class="header" id="header">
+    <span class="status-dot" aria-hidden="true"></span>
+    <div class="header-text">
+      <div class="header-title" id="headerTitle">Phone</div>
+      <div class="header-sub" id="headerSub">Ready to dial</div>
+    </div>
+    <div class="timer" id="timer" aria-live="polite">00:00</div>
+  </header>
+
+  <div class="display">
+    <input
+      class="number-input"
+      id="numberInput"
+      type="tel"
+      inputmode="tel"
+      placeholder="Enter a number"
+      aria-label="Phone number"
+      autocomplete="off"
+    >
+    <button class="backspace" id="backspaceBtn" aria-label="Delete last digit" title="Delete">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 4H8l-6 8 6 8h13a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1z"/>
+        <line x1="17" y1="9" x2="11" y2="15"/><line x1="11" y1="9" x2="17" y2="15"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="keypad" id="keypad" role="group" aria-label="Dial pad">
+    <button class="key" data-digit="1"><span class="digit">1</span><span class="letters"></span></button>
+    <button class="key" data-digit="2"><span class="digit">2</span><span class="letters">ABC</span></button>
+    <button class="key" data-digit="3"><span class="digit">3</span><span class="letters">DEF</span></button>
+    <button class="key" data-digit="4"><span class="digit">4</span><span class="letters">GHI</span></button>
+    <button class="key" data-digit="5"><span class="digit">5</span><span class="letters">JKL</span></button>
+    <button class="key" data-digit="6"><span class="digit">6</span><span class="letters">MNO</span></button>
+    <button class="key" data-digit="7"><span class="digit">7</span><span class="letters">PQRS</span></button>
+    <button class="key" data-digit="8"><span class="digit">8</span><span class="letters">TUV</span></button>
+    <button class="key" data-digit="9"><span class="digit">9</span><span class="letters">WXYZ</span></button>
+    <button class="key" data-digit="*"><span class="digit">*</span><span class="letters"></span></button>
+    <button class="key" data-digit="0"><span class="digit">0</span><span class="letters">+</span></button>
+    <button class="key" data-digit="#"><span class="digit">#</span><span class="letters"></span></button>
+  </div>
+
+  <div class="actions">
+    <button class="util-btn" id="muteBtn" aria-pressed="false">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v1a7 7 0 0 1-14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/>
+      </svg>
+      <span class="util-label">Mute</span>
+    </button>
+
+    <button class="action-btn call-btn" id="callBtn" aria-label="Call">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24 11.4 11.4 0 0 0 3.57.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .57 3.57 1 1 0 0 1-.25 1.02z"/>
+      </svg>
+    </button>
+
+    <button class="action-btn end-btn" id="endBtn" aria-label="End call">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1a1 1 0 0 1-.56.9 11.6 11.6 0 0 0-2.67 1.85 1 1 0 0 1-1.4-.02L.29 13.08a1 1 0 0 1-.02-1.4C3.34 8.6 7.46 7 12 7s8.66 1.6 11.73 4.68a1 1 0 0 1-.02 1.4l-2.48 2.47a1 1 0 0 1-1.4.02 11.6 11.6 0 0 0-2.67-1.85 1 1 0 0 1-.56-.9v-3.1A14.5 14.5 0 0 0 12 9z"/>
+      </svg>
+    </button>
+
+    <button class="util-btn" id="holdBtn" aria-pressed="false">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <line x1="9" y1="5" x2="9" y2="19"/><line x1="15" y1="5" x2="15" y2="19"/>
+      </svg>
+      <span class="util-label">Hold</span>
+    </button>
+  </div>
+
+  <footer class="footer">
+    <span class="footer-note" id="footerNote">Calls are logged automatically</span>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var dialer = document.getElementById('dialer');
+  var header = document.getElementById('header');
+  var headerTitle = document.getElementById('headerTitle');
+  var headerSub = document.getElementById('headerSub');
+  var timerEl = document.getElementById('timer');
+  var input = document.getElementById('numberInput');
+  var backspaceBtn = document.getElementById('backspaceBtn');
+  var keypad = document.getElementById('keypad');
+  var callBtn = document.getElementById('callBtn');
+  var endBtn = document.getElementById('endBtn');
+  var muteBtn = document.getElementById('muteBtn');
+  var holdBtn = document.getElementById('holdBtn');
+  var footerNote = document.getElementById('footerNote');
+
+  var raw = '';           // unformatted digits (may include + * #)
+  var onCall = false;
+  var timerId = null;
+  var seconds = 0;
+
+  // Format 10-digit US numbers as (xxx) xxx-xxxx; leave others as typed.
+  function format(value) {
+    var digits = value.replace(/\D/g, '');
+    if (/[*#+]/.test(value) || digits.length === 0 || digits.length > 10) return value;
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return '(' + digits.slice(0, 3) + ') ' + digits.slice(3);
+    return '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+  }
+
+  function render() {
+    input.value = format(raw);
+    backspaceBtn.classList.toggle('visible', raw.length > 0 && !onCall);
+  }
+
+  function addChar(ch) {
+    if (raw.length >= 16) return;
+    raw += ch;
+    render();
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function tick() {
+    seconds++;
+    timerEl.textContent = pad(Math.floor(seconds / 60)) + ':' + pad(seconds % 60);
+  }
+
+  function startCall() {
+    if (!raw) {
+      input.placeholder = 'Enter a number to call';
+      return;
+    }
+    onCall = true;
+    seconds = 0;
+    timerEl.textContent = '00:00';
+    dialer.classList.add('on-call');
+    header.classList.add('on-call');
+    headerTitle.textContent = format(raw);
+    headerSub.textContent = 'On call';
+    footerNote.textContent = 'Call in progress';
+    backspaceBtn.classList.remove('visible');
+    timerId = setInterval(tick, 1000);
+  }
+
+  function endCall() {
+    onCall = false;
+    clearInterval(timerId);
+    dialer.classList.remove('on-call');
+    header.classList.remove('on-call');
+    headerTitle.textContent = 'Phone';
+    headerSub.textContent = 'Ready to dial';
+    footerNote.textContent = 'Calls are logged automatically';
+    muteBtn.classList.remove('active');
+    muteBtn.setAttribute('aria-pressed', 'false');
+    holdBtn.classList.remove('active');
+    holdBtn.setAttribute('aria-pressed', 'false');
+    raw = '';
+    render();
+  }
+
+  keypad.addEventListener('click', function (e) {
+    var key = e.target.closest('.key');
+    if (key) addChar(key.dataset.digit);
+  });
+
+  backspaceBtn.addEventListener('click', function () {
+    raw = raw.slice(0, -1);
+    render();
+  });
+
+  callBtn.addEventListener('click', startCall);
+  endBtn.addEventListener('click', endCall);
+
+  function toggle(btn) {
+    var active = btn.classList.toggle('active');
+    btn.setAttribute('aria-pressed', String(active));
+    headerSub.textContent = holdBtn.classList.contains('active') ? 'On hold'
+      : muteBtn.classList.contains('active') ? 'Muted' : 'On call';
+  }
+
+  muteBtn.addEventListener('click', function () { toggle(muteBtn); });
+  holdBtn.addEventListener('click', function () { toggle(holdBtn); });
+
+  // Direct typing in the display: keep only dialable characters.
+  input.addEventListener('input', function () {
+    raw = input.value.replace(/[^\d*#+]/g, '');
+    render();
+  });
+
+  // Keyboard shortcuts anywhere in the pop-up.
+  document.addEventListener('keydown', function (e) {
+    if (e.target === input) {
+      if (e.key === 'Enter') startCall();
+      return;
+    }
+    if (/^[\d*#+]$/.test(e.key)) addChar(e.key);
+    else if (e.key === 'Backspace') { raw = raw.slice(0, -1); render(); }
+    else if (e.key === 'Enter') { onCall ? endCall() : startCall(); }
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
