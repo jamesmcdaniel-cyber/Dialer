@@ -17,8 +17,8 @@ window.DIALER_CONFIG = {
   apiVersion: '62.0',
   // Leave empty when the page is served from your Salesforce domain
   // (e.g. as a Visualforce page). If it's hosted externally, set your
-  // org's domain: 'https://keyslogic.lightning.force.com'
-  instanceUrl: 'https://keyslogic.lightning.force.com'
+  // org's My Domain: 'https://yourdomain.my.salesforce.com'
+  instanceUrl: 'https://keyslogic.my.salesforce.com'
 };
 
 window.DialerCTI = (function () {
@@ -30,21 +30,41 @@ window.DialerCTI = (function () {
     if (handlers.onStatusChange) handlers.onStatusChange(connected);
   }
 
-  function loadScript() {
+  // opencti_min.js must come from the org's my.salesforce.com domain;
+  // lightning.force.com answers script requests with a login redirect.
+  // Try the configured domain first, then the sibling form of it.
+  function candidateUrls() {
     var cfg = window.DIALER_CONFIG;
-    var script = document.createElement('script');
-    script.src = cfg.instanceUrl + '/support/api/' + cfg.apiVersion + '/lightning/opencti_min.js';
-    script.onload = onScriptLoaded;
-    script.onerror = function () { setConnected(false); };
-    document.head.appendChild(script);
+    var path = '/support/api/' + cfg.apiVersion + '/lightning/opencti_min.js';
+    var base = (cfg.instanceUrl || '').replace(/\/+$/, '');
+    var urls = [base + path];
+    if (base.indexOf('.lightning.force.com') !== -1) {
+      urls.push(base.replace('.lightning.force.com', '.my.salesforce.com') + path);
+    } else if (base.indexOf('.my.salesforce.com') !== -1) {
+      urls.push(base.replace('.my.salesforce.com', '.lightning.force.com') + path);
+    }
+    return urls;
+  }
+
+  function loadScript() {
+    var urls = candidateUrls();
+    (function tryNext(i) {
+      if (i >= urls.length) {
+        setConnected(false);
+        return;
+      }
+      var script = document.createElement('script');
+      script.src = urls[i];
+      script.onload = function () {
+        if (window.sforce && sforce.opencti) onScriptLoaded();
+        else tryNext(i + 1);
+      };
+      script.onerror = function () { tryNext(i + 1); };
+      document.head.appendChild(script);
+    })(0);
   }
 
   function onScriptLoaded() {
-    if (!(window.sforce && sforce.opencti)) {
-      setConnected(false);
-      return;
-    }
-
     sforce.opencti.enableClickToDial({
       callback: function (response) { setConnected(response.success); }
     });
