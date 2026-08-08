@@ -23,10 +23,17 @@ window.DIALER_CONFIG = {
 
 window.DialerCTI = (function () {
   var connected = false;
+  var connectTimer = null;
   var handlers = { onStatusChange: null, onClickToDial: null };
 
+  function log(msg) {
+    if (window.console) console.log('[Dialer CTI] ' + msg);
+  }
+
   function setConnected(value) {
+    clearTimeout(connectTimer);
     connected = value;
+    log(value ? 'Connected to Salesforce' : 'Not connected — running standalone');
     if (handlers.onStatusChange) handlers.onStatusChange(connected);
   }
 
@@ -47,26 +54,46 @@ window.DialerCTI = (function () {
   }
 
   function loadScript() {
+    // If Salesforce never answers the handshake (e.g. the page is open in
+    // a plain browser tab), resolve to standalone instead of hanging.
+    connectTimer = setTimeout(function () {
+      log('Timed out waiting for the Open CTI handshake');
+      setConnected(false);
+    }, 10000);
+
     var urls = candidateUrls();
     (function tryNext(i) {
       if (i >= urls.length) {
+        log('Could not load opencti_min.js from any candidate URL');
         setConnected(false);
         return;
       }
+      log('Trying ' + urls[i]);
       var script = document.createElement('script');
       script.src = urls[i];
       script.onload = function () {
-        if (window.sforce && sforce.opencti) onScriptLoaded();
-        else tryNext(i + 1);
+        if (window.sforce && sforce.opencti) {
+          log('opencti_min.js loaded, starting handshake');
+          onScriptLoaded();
+        } else {
+          log('Script loaded but sforce.opencti is missing (login redirect?)');
+          tryNext(i + 1);
+        }
       };
-      script.onerror = function () { tryNext(i + 1); };
+      script.onerror = function () {
+        log('Failed to load ' + urls[i]);
+        tryNext(i + 1);
+      };
       document.head.appendChild(script);
     })(0);
   }
 
   function onScriptLoaded() {
     sforce.opencti.enableClickToDial({
-      callback: function (response) { setConnected(response.success); }
+      callback: function (response) {
+        if (!response.success) log('enableClickToDial failed: ' + JSON.stringify(response.errors));
+        setConnected(response.success);
+      }
     });
 
     sforce.opencti.onClickToDial({
