@@ -1,6 +1,8 @@
 # Dialer
 
-A simple softphone dialer interface that runs as a pop-up screen in Salesforce, integrated with Salesforce Open CTI and Twilio Voice for real calls.
+A simple softphone dialer interface that runs in the Salesforce Lightning utility bar, integrated with Salesforce Open CTI and Twilio Voice for real calls.
+
+> **The dialer must run inside the utility-bar softphone to reach Salesforce.** Open CTI talks to Salesforce by posting messages to the parent frame, so a detached browser tab or `window.open` popup can never connect — `window.parent` is itself. Opened that way the dialer still works, but only in standalone/simulated mode.
 
 ## What it is
 
@@ -29,7 +31,9 @@ A simple softphone dialer interface that runs as a pop-up screen in Salesforce, 
 3. **Import the call center** — edit `reqAdapterUrl` in [call-center-definition.xml](call-center-definition.xml) to your hosted URL, then in Setup → **Call Centers** → **Import**.
 4. **Assign users** — open the imported call center → **Manage Call Center Users** → add your users.
 5. **Add the softphone to an app** — Setup → **App Manager** → edit your Lightning app → **Utility Items** → add **Open CTI Softphone**.
-6. Phone numbers in Salesforce become clickable; the softphone opens as a pop-up from the utility bar.
+6. Phone numbers in Salesforce become clickable; the softphone opens as a panel from the utility bar. Open it from there — not as a separate window.
+
+If the footer reads `Salesforce not connected`, open the browser console and look for the `[Dialer CTI]` lines. They report whether the page received the `sfdcIframeOrigin`/`mode` parameters that Salesforce appends to the adapter URL, which is the difference between "not in the softphone frame" and "in the frame but the handshake failed".
 
 ## Twilio setup (real calls)
 
@@ -47,13 +51,13 @@ The Hold button is visual-only — hold requires conference-based call control, 
 
 ## Try it standalone
 
-Open `index.html` in a browser, or simulate the pop-up size:
+For UI work only — this mode cannot connect to Salesforce (see the note at the top). Open `index.html` in a browser, or simulate the panel size:
 
 ```js
 window.open('index.html', 'dialer', 'width=360,height=620');
 ```
 
-Without Salesforce or Twilio configured, the footer shows `Salesforce not connected · simulated calls` and everything works locally in demo mode.
+The footer shows `Salesforce not connected · simulated calls` and everything works locally in demo mode.
 
 ## How the pieces fit
 
