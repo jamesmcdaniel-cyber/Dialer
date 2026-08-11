@@ -53,9 +53,39 @@ window.DialerCTI = (function () {
     return urls;
   }
 
+  // Salesforce appends sfdcIframeOrigin and mode to the adapter URL when it
+  // renders the softphone iframe. opencti_min.js reads them from
+  // location.search and throws on load if either is missing, so check for
+  // them first — otherwise the failure surfaces as a silent timeout.
+  function softphoneParams() {
+    var out = {};
+    var query = (window.location.search || '').replace(/^\?/, '');
+    if (!query) return out;
+    query.split('&').forEach(function (pair) {
+      var parts = pair.split('=');
+      if (parts[0]) out[parts[0]] = parts[1] ? decodeURIComponent(parts[1]) : '';
+    });
+    return out;
+  }
+
   function loadScript() {
-    // If Salesforce never answers the handshake (e.g. the page is open in
-    // a plain browser tab), resolve to standalone instead of hanging.
+    var params = softphoneParams();
+    if (!params.sfdcIframeOrigin || !params.mode) {
+      log('Not running inside a Salesforce softphone: the page URL has no ' +
+          'sfdcIframeOrigin/mode parameters (' +
+          (window.location.search || 'no query string') + '). ' +
+          'Open the dialer from the Salesforce utility bar — a separate ' +
+          'browser tab or window can never connect. If it is in the utility ' +
+          'bar, check that the Call Center adapter URL matches ' +
+          window.location.origin + window.location.pathname);
+      setConnected(false);
+      return;
+    }
+    log('Softphone frame detected (origin ' + params.sfdcIframeOrigin +
+        ', mode ' + params.mode + ')');
+
+    // If Salesforce never answers the handshake, resolve to standalone
+    // instead of hanging.
     connectTimer = setTimeout(function () {
       log('Timed out waiting for the Open CTI handshake');
       setConnected(false);
@@ -72,12 +102,19 @@ window.DialerCTI = (function () {
       var script = document.createElement('script');
       script.src = urls[i];
       script.onload = function () {
-        if (window.sforce && sforce.opencti) {
-          log('opencti_min.js loaded, starting handshake');
-          onScriptLoaded();
-        } else {
+        if (!window.sforce || !sforce.opencti) {
           log('Script loaded but sforce.opencti is missing (login redirect?)');
           tryNext(i + 1);
+          return;
+        }
+        log('opencti_min.js loaded, starting handshake');
+        // sforce.opencti is assigned before initialize() runs, so it exists
+        // even when initialization failed; the first API call is what throws.
+        try {
+          onScriptLoaded();
+        } catch (e) {
+          log('Open CTI rejected the handshake: ' + (e && e.message ? e.message : e));
+          setConnected(false);
         }
       };
       script.onerror = function () {
